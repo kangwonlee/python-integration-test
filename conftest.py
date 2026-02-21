@@ -3,21 +3,29 @@
 '''
 Shared fixtures for integration tests.
 
-Provides Docker image building, container execution,
+Provides Docker image management, container execution,
 and temporary workspace management.
+
+Image source (checked in order):
+  1. GRADER_IMAGE env var — use a pre-built image directly
+  2. GRADER_IMAGE_BUILD env var — path to Dockerfile context to build from
+  3. Sibling template dir — build from ../python-pytest-template/
+  4. GHCR fallback — pull ghcr.io/kangwonlee/python-pytest-template:latest
 '''
 
 import json
+import os
 import pathlib
 import shutil
 import subprocess
-import tempfile
 
 import pytest
 
 
 FIXTURES_DIR = pathlib.Path(__file__).parent / 'fixtures'
 TEMPLATE_DIR = pathlib.Path(__file__).parent.parent / 'python-pytest-template'
+LOCAL_BUILD_TAG = 'integration-test-grader:latest'
+GHCR_FALLBACK = 'ghcr.io/kangwonlee/python-pytest-template:latest'
 
 
 @pytest.fixture(scope='session')
@@ -35,28 +43,75 @@ def docker_available():
 
 @pytest.fixture(scope='session')
 def grader_image(docker_available):
-    """Build the grader Docker image from python-pytest-template."""
-    image_tag = 'integration-test-grader:latest'
+    """
+    Provide a grader Docker image for testing.
 
-    if not TEMPLATE_DIR.exists():
-        pytest.skip(f'Template directory not found: {TEMPLATE_DIR}')
+    Resolution order:
+      1. GRADER_IMAGE env var (pre-built, e.g. from CI build step)
+      2. GRADER_IMAGE_BUILD env var (path to Dockerfile context)
+      3. Sibling python-pytest-template directory (local dev)
+      4. GHCR fallback (pull from registry)
+    """
+    built_locally = False
 
+    # 1. Explicit image from env
+    env_image = os.environ.get('GRADER_IMAGE')
+    if env_image:
+        yield env_image
+        return
+
+    # 2. Explicit build path from env
+    build_path = os.environ.get('GRADER_IMAGE_BUILD')
+    if build_path:
+        build_dir = pathlib.Path(build_path)
+        if build_dir.exists():
+            _docker_build(build_dir, LOCAL_BUILD_TAG)
+            built_locally = True
+            yield LOCAL_BUILD_TAG
+            if built_locally:
+                _docker_rmi(LOCAL_BUILD_TAG)
+            return
+
+    # 3. Sibling template directory
+    if TEMPLATE_DIR.exists():
+        _docker_build(TEMPLATE_DIR, LOCAL_BUILD_TAG)
+        built_locally = True
+        yield LOCAL_BUILD_TAG
+        if built_locally:
+            _docker_rmi(LOCAL_BUILD_TAG)
+        return
+
+    # 4. GHCR fallback
+    _docker_pull(GHCR_FALLBACK)
+    yield GHCR_FALLBACK
+
+
+def _docker_build(context: pathlib.Path, tag: str) -> None:
     result = subprocess.run(
-        ['docker', 'build', '-t', image_tag, '.'],
-        cwd=TEMPLATE_DIR,
+        ['docker', 'build', '-t', tag, '.'],
+        cwd=context,
         capture_output=True,
         text=True,
         timeout=300,
     )
-
     if result.returncode != 0:
         pytest.fail(f'Docker build failed:\n{result.stderr}')
 
-    yield image_tag
 
-    # Cleanup: remove image after tests
+def _docker_pull(image: str) -> None:
+    result = subprocess.run(
+        ['docker', 'pull', image],
+        capture_output=True,
+        text=True,
+        timeout=300,
+    )
+    if result.returncode != 0:
+        pytest.fail(f'Docker pull failed:\n{result.stderr}')
+
+
+def _docker_rmi(image: str) -> None:
     subprocess.run(
-        ['docker', 'rmi', image_tag],
+        ['docker', 'rmi', image],
         capture_output=True,
         text=True,
     )
