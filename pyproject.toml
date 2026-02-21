@@ -1,0 +1,10 @@
+[project]
+name = "python-integration-test"
+version = "2026.02.21"
+description = "Integration tests for the Python grading pipeline"
+requires-python = ">=3.10"
+
+[project.optional-dependencies]
+test = [
+    "pytest>=7.0",
+]
