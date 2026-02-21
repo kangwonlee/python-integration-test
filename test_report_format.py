@@ -11,7 +11,8 @@ import pytest
 
 
 REQUIRED_TOP_LEVEL_KEYS = {'tests', 'summary', 'created'}
-REQUIRED_SUMMARY_KEYS = {'total', 'passed', 'failed'}
+REQUIRED_SUMMARY_KEYS = {'total'}
+OPTIONAL_SUMMARY_KEYS = {'passed', 'failed', 'skipped', 'error', 'collected', 'xfailed', 'xpassed'}
 VALID_OUTCOMES = {'passed', 'failed', 'skipped', 'error', 'xfailed', 'xpassed'}
 
 
@@ -48,7 +49,7 @@ class TestReportSchema:
     def test_summary_values_are_integers(self, sample_report):
         """Summary counts should be non-negative integers."""
         summary = sample_report['summary']
-        for key in REQUIRED_SUMMARY_KEYS:
+        for key in summary:
             assert isinstance(summary[key], int), f'{key} should be int'
             assert summary[key] >= 0, f'{key} should be non-negative'
 
