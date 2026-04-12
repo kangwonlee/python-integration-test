@@ -25,7 +25,14 @@ REQUIRED_TUTOR_FILES = [
     'entrypoint.py',
     'llm_client.py',
     'llm_configs.py',
+    'llm_utils.py',
     'prompt.py',
+]
+
+# prompt_pipeline subpackage files in /app/ai_tutor/prompt_pipeline/
+REQUIRED_PIPELINE_FILES = [
+    '__init__.py',
+    'entrypoint.py',
 ]
 
 # Python packages that must be importable
@@ -55,7 +62,7 @@ class TestContainerBuild:
         assert result.stdout.strip() != 'root'
 
     def test_image_python_version(self, grader_image):
-        """Container Python version should be 3.11.x."""
+        """Container Python version should be 3.13.x."""
         result = subprocess.run(
             ['docker', 'run', '--rm', grader_image,
              'python3', '-c', 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")'],
@@ -64,7 +71,7 @@ class TestContainerBuild:
             timeout=30,
         )
         assert result.returncode == 0, f'Failed: {result.stderr}'
-        assert result.stdout.strip() == '3.11', f'Expected Python 3.11, got {result.stdout.strip()}'
+        assert result.stdout.strip() == '3.13', f'Expected Python 3.13, got {result.stdout.strip()}'
 
 
 class TestRequiredTestFiles:
@@ -131,6 +138,24 @@ class TestRequiredTutorFiles:
             timeout=30,
         )
         assert result.returncode == 0, f'entrypoint import failed: {result.stderr}'
+
+
+class TestRequiredPipelineFiles:
+    """Verify that prompt_pipeline subpackage exists in /app/ai_tutor/prompt_pipeline/."""
+
+    @pytest.mark.parametrize('filename', REQUIRED_PIPELINE_FILES)
+    def test_pipeline_file_exists(self, grader_image, filename):
+        """Each required prompt_pipeline file must exist."""
+        result = subprocess.run(
+            ['docker', 'run', '--rm', grader_image,
+             'python3', '-c',
+             f'import pathlib; p = pathlib.Path("/app/ai_tutor/prompt_pipeline/{filename}"); '
+             f'assert p.exists(), f"{{p}} not found"'],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        assert result.returncode == 0, f'/app/ai_tutor/prompt_pipeline/{filename} missing: {result.stderr}'
 
 
 class TestRequiredPackages:
