@@ -7,6 +7,7 @@ These tests require at least one LLM API key to be set.
 They are automatically skipped when no API keys are available.
 '''
 
+import json
 import os
 import subprocess
 
@@ -99,6 +100,12 @@ class TestAITutor:
         # AI tutor should produce output (feedback)
         assert result.returncode == 0, f'AI tutor failed:\n{result.stderr}'
         assert len(result.stdout.strip()) > 0, 'AI tutor should produce feedback'
+
+        # AI tutor should write token_usage.json
+        usage_path = output_dir / 'token_usage.json'
+        assert usage_path.exists(), 'token_usage.json not produced'
+        usage = json.loads(usage_path.read_text())
+        assert 'model' in usage, 'token_usage.json should contain model field'
 
     def test_tutor_handles_all_pass(
         self, grader_image, workspace, output_dir,
