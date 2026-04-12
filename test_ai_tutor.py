@@ -83,6 +83,8 @@ class TestAITutor:
             '-v', f'{output_dir}:/output',
             '-e', f'INPUT_REPORT-FILES={report_files}',
             '-e', f'INPUT_STUDENT-FILES={student_files}',
+            '-e', 'INPUT_README-PATH=/app/workspace/README.md',
+            '-e', 'INPUT_OUTPUT-DIR=/output',
             '-e', 'INPUT_EXPLANATION-IN=English',
             '-e', 'GITHUB_REPOSITORY=test/integration-test',
         ] + api_env + [
@@ -135,6 +137,7 @@ class TestAITutor:
             '-v', f'{output_dir}:/output',
             '-e', f'INPUT_REPORT-FILES={report_files}',
             '-e', f'INPUT_STUDENT-FILES={student_files}',
+            '-e', 'INPUT_README-PATH=/app/workspace/README.md',
             '-e', 'INPUT_EXPLANATION-IN=English',
             '-e', 'GITHUB_REPOSITORY=test/integration-test',
         ] + api_env + [

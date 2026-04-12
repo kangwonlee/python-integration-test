@@ -140,6 +140,10 @@ def copy_fixture():
         src = FIXTURES_DIR / fixture_name
         dst = workspace / 'exercise.py'
         shutil.copy2(src, dst)
+        # Also copy sample README for AI tutor input
+        readme_src = FIXTURES_DIR / 'sample_readme.md'
+        if readme_src.exists():
+            shutil.copy2(readme_src, workspace / 'README.md')
         return dst
     return _copy
 
