@@ -111,6 +111,106 @@ class TestResultsCheck:
         assert len(failed) >= 1, 'Wrong output should be detected'
 
 
+class TestEdgeCasesBackwardCompat:
+    """Verify the edge-cases grading step is backward-compatible.
+
+    Images WITHOUT test_edge_cases.py should grade normally (3-step).
+    Images WITH test_edge_cases.py should run the 4th step.
+    """
+
+    def test_image_without_edge_cases_grades_normally(
+        self, grader_image, workspace, output_dir,
+        copy_fixture, init_git_repo, run_grader, read_report,
+        image_has_test_file,
+    ):
+        """An image without test_edge_cases.py should grade with 3 steps only."""
+        if image_has_test_file(grader_image, 'test_edge_cases.py'):
+            pytest.skip('Image has test_edge_cases.py — test the WITH path instead')
+
+        copy_fixture('exercise_pass.py', workspace)
+        init_git_repo(workspace)
+
+        for test_file, report_name in [
+            ('test_syntax.py', 'report_syntax.json'),
+            ('test_style.py', 'report_style.json'),
+            ('test_results.py', 'report_results.json'),
+        ]:
+            run_grader(grader_image, workspace, output_dir, test_file, report_name)
+            report = read_report(output_dir, report_name)
+            assert 'tests' in report, f'{report_name} should have tests'
+            assert 'summary' in report, f'{report_name} should have summary'
+
+    def test_edge_cases_file_absent_means_step_skipped(
+        self, grader_image, image_has_test_file,
+    ):
+        """Image without test_edge_cases.py: running it should fail (file not found)."""
+        if image_has_test_file(grader_image, 'test_edge_cases.py'):
+            pytest.skip('Image has test_edge_cases.py')
+
+        import subprocess
+        result = subprocess.run(
+            ['docker', 'run', '--rm', grader_image,
+             'python3', '-m', 'pytest', '/tests/test_edge_cases.py', '--co'],
+            capture_output=True, text=True, timeout=10,
+        )
+        assert result.returncode != 0, (
+            'test_edge_cases.py should not exist — '
+            'the workflow skips this step via max_score_edge_cases=0'
+        )
+
+    def test_image_with_edge_cases_runs_4th_step(
+        self, grader_image, workspace, output_dir,
+        copy_fixture, init_git_repo, run_grader, read_report,
+        image_has_test_file,
+    ):
+        """An image with test_edge_cases.py should run and report the 4th step."""
+        if not image_has_test_file(grader_image, 'test_edge_cases.py'):
+            pytest.skip('Image does not have test_edge_cases.py')
+
+        copy_fixture('exercise_pass.py', workspace)
+        init_git_repo(workspace)
+
+        result = run_grader(
+            grader_image, workspace, output_dir,
+            'test_edge_cases.py', 'report_edge_cases.json',
+        )
+
+        report = read_report(output_dir, 'report_edge_cases.json')
+        assert 'tests' in report, 'Edge-cases report should have tests'
+        assert 'summary' in report, 'Edge-cases report should have summary'
+        assert report['summary']['total'] > 0, 'Edge-cases should have at least one test'
+
+    def test_results_and_edge_cases_are_disjoint(
+        self, grader_image, workspace, output_dir,
+        copy_fixture, init_git_repo, run_grader, read_report,
+        image_has_test_file,
+    ):
+        """test_results.py and test_edge_cases.py should have no overlapping test names."""
+        if not image_has_test_file(grader_image, 'test_edge_cases.py'):
+            pytest.skip('Image does not have test_edge_cases.py')
+
+        copy_fixture('exercise_pass.py', workspace)
+        init_git_repo(workspace)
+
+        run_grader(grader_image, workspace, output_dir,
+                   'test_results.py', 'report_results.json')
+        run_grader(grader_image, workspace, output_dir,
+                   'test_edge_cases.py', 'report_edge_cases.json')
+
+        results_report = read_report(output_dir, 'report_results.json')
+        edge_report = read_report(output_dir, 'report_edge_cases.json')
+
+        results_names = {t['nodeid'].split('::')[-1].split('[')[0]
+                         for t in results_report.get('tests', [])}
+        edge_names = {t['nodeid'].split('::')[-1].split('[')[0]
+                      for t in edge_report.get('tests', [])}
+
+        overlap = results_names & edge_names
+        assert not overlap, (
+            f'Tests overlap between test_results.py and test_edge_cases.py: {overlap}'
+        )
+
+
 class TestSecurityConstraints:
     """Test that security constraints are enforced."""
 

@@ -223,4 +223,19 @@ def read_report():
     return _read
 
 
+@pytest.fixture
+def image_has_test_file():
+    """Check if a test file exists inside the grader image."""
+    def _check(image: str, test_file: str) -> bool:
+        result = subprocess.run(
+            ['docker', 'run', '--rm', image,
+             'test', '-f', f'/tests/{test_file}'],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        return result.returncode == 0
+    return _check
+
+
 # end conftest.py
